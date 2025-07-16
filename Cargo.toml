@@ -1,0 +1,13 @@
+[package]
+name = "FlowTimer"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+bevy = "0.11.0"
+rodio = "0.17"
+winit = "0.28"
+
+[build-dependencies]
+winres = "0.1"

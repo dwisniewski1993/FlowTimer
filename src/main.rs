@@ -1,10 +1,7 @@
 use bevy::prelude::*;
-use bevy::window::{PrimaryWindow, WindowLevel};
-use bevy::winit::WinitWindows;
-use bevy::ui::Interaction;
+use bevy::window::{CompositeAlphaMode, PrimaryWindow, WindowLevel};
 use std::time::{Duration, Instant};
 use rodio::{OutputStream, Sink, source::SineWave, Source};
-use winit::dpi::PhysicalPosition;
 
 const ROBOTO_BYTES: &[u8] = include_bytes!("Roboto-SemiBold.ttf");
 
@@ -12,7 +9,7 @@ const ROBOTO_BYTES: &[u8] = include_bytes!("Roboto-SemiBold.ttf");
 struct EmbeddedFont(Handle<Font>);
 
 #[derive(Resource)]
-struct Timer {
+struct TimerState {
     start: Option<Instant>,
     triggered_10: bool,
     triggered_5: bool,
@@ -29,7 +26,7 @@ fn main() {
     let (_stream, handle) = OutputStream::try_default().expect("Brak audio");
 
     App::new()
-        .insert_resource(Timer {
+        .insert_resource(TimerState {
             start: None,
             triggered_10: false,
             triggered_5: false,
@@ -39,16 +36,18 @@ fn main() {
             primary_window: Some(Window {
                 title: "FlowTimer".into(),
                 transparent: true,
+                // Wymagane na macOS dla prawdziwej przezroczystości okna
+                composite_alpha_mode: CompositeAlphaMode::PostMultiplied,
                 window_level: WindowLevel::AlwaysOnTop,
                 decorations: false,
                 resizable: false,
-                resolution: (100., 36.).into(),
+                resolution: (100u32, 36u32).into(),
                 focused: true,
                 ..default()
             }),
             ..default()
         }))
-        .insert_resource(ClearColor(Color::NONE))
+        .insert_resource(ClearColor(Color::srgba(0., 0., 0., 0.)))
         .add_systems(Startup, setup)
         .add_systems(Update, (handle_start_click, update_timer, drag_window))
         .run();
@@ -58,66 +57,65 @@ fn setup(
     mut commands: Commands,
     mut fonts: ResMut<Assets<Font>>,
 ) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 
-    let embedded = fonts.add(Font::try_from_bytes(ROBOTO_BYTES.to_vec()).expect("Nie można załadować czcionki"));
+    let embedded = fonts.add(
+        Font::try_from_bytes(ROBOTO_BYTES.to_vec()).expect("Nie można załadować czcionki"),
+    );
     commands.insert_resource(EmbeddedFont(embedded.clone()));
 
     commands.spawn((
-        ButtonBundle {
-            style: Style {
-                width: Val::Px(100.0),
-                height: Val::Px(36.0),
-                margin: UiRect::all(Val::Auto),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            background_color: Color::rgb(0.5, 0.5, 0.5).into(),
+        Button,
+        Node {
+            width: Val::Px(100.0),
+            height: Val::Px(36.0),
+            margin: UiRect::all(Val::Auto),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
             ..default()
         },
+        BackgroundColor(Color::NONE),
         StartButton,
     ))
         .with_children(|parent| {
-            parent.spawn(TextBundle::from_section(
-                "Start",
-                TextStyle {
+            parent.spawn((
+                Text::new("Start"),
+                TextFont {
                     font: embedded.clone(),
                     font_size: 24.0,
-                    color: Color::WHITE,
+                    ..default()
                 },
+                TextColor(Color::WHITE),
             ));
         });
 }
 
 fn handle_start_click(
     mut commands: Commands,
-    mut interaction: Query<(Entity, &Interaction), (With<Button>, With<StartButton>)>,
-    mut timer: ResMut<Timer>,
+    interaction: Query<(Entity, &Interaction), (With<Button>, With<StartButton>)>,
+    mut timer: ResMut<TimerState>,
     font: Res<EmbeddedFont>,
 ) {
-    for (entity, interaction) in &mut interaction {
+    for (entity, interaction) in &interaction {
         if *interaction == Interaction::Pressed {
             timer.start = Some(Instant::now());
             timer.triggered_10 = false;
             timer.triggered_5 = false;
 
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
 
             commands.spawn((
-                TextBundle::from_section(
-                    "02:00",
-                    TextStyle {
-                        font: font.0.clone(),
-                        font_size: 32.0,
-                        color: Color::WHITE,
-                    },
-                )
-                    .with_style(Style {
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    }),
+                Text::new("02:00"),
+                TextFont {
+                    font: font.0.clone(),
+                    font_size: 32.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                Node {
+                    margin: UiRect::all(Val::Auto),
+                    ..default()
+                },
                 TimerText,
             ));
         }
@@ -125,8 +123,8 @@ fn handle_start_click(
 }
 
 fn update_timer(
-    mut timer: ResMut<Timer>,
-    mut query: Query<&mut Text, With<TimerText>>,
+    mut timer: ResMut<TimerState>,
+    mut query: Query<(&mut Text, &mut TextColor), With<TimerText>>,
 ) {
     let Some(start_time) = timer.start else { return };
 
@@ -137,35 +135,33 @@ fn update_timer(
         timer.triggered_10 = false;
         timer.triggered_5 = false;
 
-        for mut text in &mut query {
-            text.sections[0].style.color = Color::WHITE;
+        for (mut text, mut color) in &mut query {
+            text.0 = "02:00".to_string();
+            *color = TextColor(Color::WHITE);
         }
+        return;
     }
 
     let remaining = 120 - elapsed;
-    let minutes = remaining / 60;
-    let seconds = remaining % 60;
-    let display = format!("{:02}:{:02}", minutes, seconds);
+    let display = format!("{:02}:{:02}", remaining / 60, remaining % 60);
 
-    for mut text in &mut query {
-        text.sections[0].value = display.clone();
+    for (mut text, _) in &mut query {
+        text.0 = display.clone();
     }
 
     if remaining == 10 && !timer.triggered_10 {
         play_beep(&timer.handle, 440.0, 800);
         timer.triggered_10 = true;
-
-        for mut text in &mut query {
-            text.sections[0].style.color = Color::YELLOW;
+        for (_, mut color) in &mut query {
+            *color = TextColor(Color::srgb(1.0, 1.0, 0.0));
         }
     }
 
     if remaining == 5 && !timer.triggered_5 {
         play_beep(&timer.handle, 880.0, 800);
         timer.triggered_5 = true;
-
-        for mut text in &mut query {
-            text.sections[0].style.color = Color::RED;
+        for (_, mut color) in &mut query {
+            *color = TextColor(Color::srgb(1.0, 0.0, 0.0));
         }
     }
 }
@@ -181,34 +177,12 @@ fn play_beep(handle: &rodio::OutputStreamHandle, freq: f32, dur_ms: u64) {
 }
 
 fn drag_window(
-    buttons: Res<Input<MouseButton>>,
-    mut cursor_events: EventReader<CursorMoved>,
-    windows: NonSend<WinitWindows>,
-    q: Query<Entity, With<PrimaryWindow>>,
-    mut last: Local<Option<Vec2>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    if !buttons.pressed(MouseButton::Left) {
-        *last = None;
-        return;
-    }
-
-    if let Some(event) = cursor_events.iter().last() {
-        let current = event.position;
-
-        if let Some(prev) = *last {
-            let delta = current - prev;
-
-            if let Some(win) = windows.get_window(q.single()) {
-                if let Ok(pos_win) = win.outer_position() {
-                    let new_pos = PhysicalPosition::new(
-                        pos_win.x + delta.x as i32,
-                        pos_win.y + delta.y as i32,
-                    );
-                    win.set_outer_position(new_pos);
-                }
-            }
+    if buttons.just_pressed(MouseButton::Left) {
+        if let Ok(mut window) = windows.single_mut() {
+            window.start_drag_move();
         }
-
-        *last = Some(current);
     }
 }

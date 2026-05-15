@@ -1,13 +1,21 @@
 [package]
 name = "FlowTimer"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 build = "build.rs"
 
+[package.metadata.bundle]
+name = "FlowTimer"
+identifier = "com.yourname.flowtimer"
+icon = ["icon.icns"]
+version = "0.1.0"
+copyright = "Copyright (c) 2025"
+category = "Productivity"
+short_description = "A simple flow timer"
+
 [dependencies]
-bevy = "0.11.0"
+bevy = "0.18"
 rodio = "0.17"
-winit = "0.28"
 
 [build-dependencies]
 winres = "0.1"

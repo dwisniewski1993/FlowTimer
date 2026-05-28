@@ -82,17 +82,17 @@ fn setup(
         BackgroundColor(Color::NONE),
         StartButton,
     ))
-    .with_children(|parent| {
-        parent.spawn((
-            Text::new("Start"),
-            TextFont {
-                font: embedded.clone(),
-                font_size: 24.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        ));
-    });
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Start"),
+                TextFont {
+                    font: embedded.clone(),
+                    font_size: 24.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+        });
 }
 
 fn handle_start_click(

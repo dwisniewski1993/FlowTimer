@@ -36,8 +36,13 @@ fn main() {
             primary_window: Some(Window {
                 title: "FlowTimer".into(),
                 transparent: true,
-                // Wymagane na macOS dla prawdziwej przezroczystości okna
+                // macOS: PostMultiplied, Linux Wayland: PreMultiplied
+                #[cfg(target_os = "macos")]
                 composite_alpha_mode: CompositeAlphaMode::PostMultiplied,
+                #[cfg(target_os = "linux")]
+                composite_alpha_mode: CompositeAlphaMode::PreMultiplied,
+                #[cfg(target_os = "windows")]
+                composite_alpha_mode: CompositeAlphaMode::Auto,
                 window_level: WindowLevel::AlwaysOnTop,
                 decorations: false,
                 resizable: false,
@@ -77,17 +82,17 @@ fn setup(
         BackgroundColor(Color::NONE),
         StartButton,
     ))
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("Start"),
-                TextFont {
-                    font: embedded.clone(),
-                    font_size: 24.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
-        });
+    .with_children(|parent| {
+        parent.spawn((
+            Text::new("Start"),
+            TextFont {
+                font: embedded.clone(),
+                font_size: 24.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+        ));
+    });
 }
 
 fn handle_start_click(
